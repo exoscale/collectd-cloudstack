@@ -16,16 +16,17 @@ import CloudStack
 
 NAME = 'cloudstack'
 
-DEFAULT_API = 'http://localhost:8096/client/api'
+DEFAULT_API = 'http://localh:8096/client/api'
 DEFAULT_AUTH = False
 DEFAULT_APIKEY = ''
 DEFAULT_SECRET = ''
 VERBOSE_LOGGING = False
 
 METRIC_TYPES = {
-  'memoryused': ('host_memory_used', 'bytes'),
-  'memorytotal': ('host_memory_total', 'bytes'),
-  'memoryallocated': ('host_memory_allocated', 'bytes')
+  'memoryused': ('h_memory_used', 'memory'),
+  'memorytotal': ('h_memory_total', 'memory'),
+  'memoryallocated': ('h_memory_allocated', 'memory'),
+  'activeviewersessions': ('console_active_sessions', 'current')
 }
 
 METRIC_DELIM = '.'
@@ -43,13 +44,29 @@ def get_stats():
                 }) 
   except:
      	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
-  for  host in hypervisors:
-	metricname = METRIC_DELIM.join([ host['name'].lower(), host['podname'].lower(), 'memoryused' ])
+  for  h in hypervisors:
+	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memoryused' ])
+	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memorytotal' ])
+	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memoryallocated' ])
 	try:
-        	stats[metricname] = host['memoryused'] 
-  		logger('verb', "readings :  %s memory used %s " % (host['name'], host['memoryused']))
+        	stats[metricnameMemUsed] = h['memoryused'] 
+        	stats[metricnameMemTotal] = h['memorytotal'] 
+        	stats[metricnameMemAlloc] = h['memoryallocated'] 
+  		logger('verb', "readings :  %s memory used %s " % (h['name'], h['memoryused']))
 	except (TypeError, ValueError), e:
         	pass
+  try 
+	systemvms = cloudstack.listSystemVms({
+		'systemvmtype': 'consoleproxy'
+		})
+  except:
+     	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
+
+  for systemvm in systemvms:
+	metricnameSessions = METRIC_DELIM.join([ systemvm['name'].lower(), h['podid'].lower(), h['zonename'], 'activeviewersessions' ])
+	if 'activeviewersessions' in systemvm:
+		stats[metricnameSessions] = systemvm['activeviewersessions']
+
   return stats	
 
 
