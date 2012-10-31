@@ -27,9 +27,12 @@ METRIC_TYPES = {
   'hmemalloc': ('host_memory_allocated', 'bytes')
 }
 
+METRIC_DELIM = '.'
+
+hypervisors = []
 # CloudStack poller Class
 class CloudStackPoll(object):
-    def __init__(self, api=DEFAULT_API, apikey, secret):
+    def __init__(self, api, apikey, secret):
         self.api = api
         self.apikey = apikey
         self.secret = secret
@@ -82,23 +85,27 @@ class CloudStackPoll(object):
                     return response[type]
 
         return response
+    
+    def hosts_stats(self):
+	global hypervisors
+	try: 
+		hypervisors = self.listHosts({
+                	'type': 'Routing'
+        	})
+	except:
+        	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
+	return hypervisors
 
 def get_stats():
   stats = dict()
-  cloudstack = CloudStackPoll(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
-
-  try:
-	hosts = cloudstack.listHosts({
-		'type': 'Routing'
-	})
-  except:
-	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)	
-	return stats
   
-  for host in hosts:
-	metricname = METRIC_DELIM.join([ statdict['svname'].lower(), statdict['pxname'].lower(), key ])
+  cloudstack = CloudStackPoll(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
+  logger('verb', "get_stats calls API %s KEY %s SECRET %s" % (API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS))
+ 
+  for  host in cloudstack.hosts_stats():
+	metricname = METRIC_DELIM.join([ host['name'].lower(), host['podname'].lower(), 'memoryused' ])
 	try:
-        	stats[metricname] = int(val)
+        	stats[metricname] = host['memoryused'] 
 	except (TypeError, ValueError), e:
         	pass
 	return stats	
@@ -108,19 +115,19 @@ def get_stats():
 # callback configuration for module
 def configure_callback(conf):
   global API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS, AUTH_MONITORS, VERBOSE_LOGGING
-  API_MONITORS = [ ]
-  APIKEY_MONITORS = [ ]
-  SECRET_MONITORS = [ ]
+  API_MONITORS = '' 
+  APIKEY_MONITORS = ''
+  SECRET_MONITORS = ''
   AUTH_MONITORS = DEFAULT_AUTH
   VERBOSE_LOGGING = False
 
   for node in conf.children:
     if node.key == "Api":
-      API_MONITORS.append(node.values[0])
+      API_MONITORS = node.values[0]
     elif node.key == "ApiKey":
-      APIKEY_MONITORS.append(node.values[0])
+      APIKEY_MONITORS = node.values[0]
     elif node.key == "Secret":
-      SECRET_MONITORS.append(node.values[0])
+      SECRET_MONITORS = node.values[0]
     elif node.key == "Auth":
       AUTH_MONITORS = node.values[0]
     elif node.key == "Verbose":
@@ -130,7 +137,6 @@ def configure_callback(conf):
 
   if not API_MONITORS:
     API_MONITORS += DEFAULT_API
-  API_MONITORS = [ p.lower() for p in API_MONITORS ]
 
 def read_callback():
   logger('verb', "beginning read_callback")
