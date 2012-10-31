@@ -37,8 +37,8 @@ Example
 
         Import "cloudstack"
 
-        <Module cloudstack>
-          Api "https://mycloudstack.com:443/client/api"
+	<Module cloudstack>
+	  Api "https://mycloudstack.com:443/client/api"
 	  Auth "True"
 	  ApiKey "RANDOM-KEY-FROM-CS"
 	  Secret "SECRET-FROM-CS"

@@ -12,6 +12,7 @@ import hmac
 import base64
 import hashlib
 import re
+import lib/CloudStack
 
 NAME = 'cloudstack'
 
@@ -30,78 +31,18 @@ METRIC_TYPES = {
 METRIC_DELIM = '.'
 
 hypervisors = []
-# CloudStack poller Class
-class CloudStackPoll(object):
-    def __init__(self, api, apikey, secret):
-        self.api = api
-        self.apikey = apikey
-        self.secret = secret
-
-    def request(self, command, args):
-        args['apikey'] = self.apikey
-        args['command'] = command
-        args['response'] = 'json'
-        
-        params=[]
-        
-        keys = sorted(args.keys())
-
-        for k in keys:
-            params.append(k + '=' + urllib.quote_plus(args[k]).replace("+", "%20"))
-       
-        query = '&'.join(params)
-
-        signature = base64.b64encode(hmac.new(
-            self.secret,
-            msg=query.lower(),
-            digestmod=hashlib.sha1
-        ).digest())
-
-        query += '&signature=' + urllib.quote_plus(signature)
-
-        response = urllib2.urlopen(self.api + '?' + query)
-        decoded = json.loads(response.read())
-       
-        propertyResponse = command.lower() + 'response'
-        if not propertyResponse in decoded:
-            if 'errorresponse' in decoded:
-                raise RuntimeError("ERROR: " + decoded['errorresponse']['errortext'])
-            else:
-                raise RuntimeError("ERROR: Unable to parse the response")
-
-        response = decoded[propertyResponse]
-        result = re.compile(r"^list(\w+)s").match(command.lower())
-
-        if not result is None:
-            type = result.group(1)
-
-            if type in response:
-                return response[type]
-            else:
-                # sometimes, the 's' is kept, as in :
-                # { "listasyncjobsresponse" : { "asyncjobs" : [ ... ] } }
-                type += 's'
-                if type in response:
-                    return response[type]
-
-        return response
-    
-    def hosts_stats(self):
-	global hypervisors
-	try: 
-		hypervisors = self.listHosts({
-                	'type': 'Routing'
-        	})
-	except:
-        	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
-	return hypervisors
 
 def get_stats():
   stats = dict()
   
-  cloudstack = CloudStackPoll(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
   logger('verb', "get_stats calls API %s KEY %s SECRET %s" % (API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS))
- 
+  cloudstack = CloudStack.Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
+  try:
+ 	hypervisors = cloudstack.listHosts({
+                        'type': 'Routing'
+                }) 
+  except:
+     	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
   for  host in cloudstack.hosts_stats():
 	metricname = METRIC_DELIM.join([ host['name'].lower(), host['podname'].lower(), 'memoryused' ])
 	try:
