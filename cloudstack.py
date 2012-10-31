@@ -45,9 +45,9 @@ def get_stats():
   except:
      	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
   for  h in hypervisors:
-	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memoryused' ])
-	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memorytotal' ])
-	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'], 'memoryallocated' ])
+	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memoryused' ])
+	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memorytotal' ])
+	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memoryallocated' ])
 	try:
         	stats[metricnameMemUsed] = h['memoryused'] 
         	stats[metricnameMemTotal] = h['memorytotal'] 
@@ -55,7 +55,7 @@ def get_stats():
   		logger('verb', "readings :  %s memory used %s " % (h['name'], h['memoryused']))
 	except (TypeError, ValueError), e:
         	pass
-  try 
+  try:
 	systemvms = cloudstack.listSystemVms({
 		'systemvmtype': 'consoleproxy'
 		})
@@ -63,7 +63,7 @@ def get_stats():
      	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
 
   for systemvm in systemvms:
-	metricnameSessions = METRIC_DELIM.join([ systemvm['name'].lower(), h['podid'].lower(), h['zonename'], 'activeviewersessions' ])
+	metricnameSessions = METRIC_DELIM.join([ systemvm['name'].lower(), h['podid'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'activeviewersessions' ])
 	if 'activeviewersessions' in systemvm:
 		stats[metricnameSessions] = systemvm['activeviewersessions']
 
