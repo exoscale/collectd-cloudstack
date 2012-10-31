@@ -12,7 +12,7 @@ import hmac
 import base64
 import hashlib
 import re
-import lib/CloudStack
+import CloudStack
 
 NAME = 'cloudstack'
 
@@ -23,9 +23,9 @@ DEFAULT_SECRET = ''
 VERBOSE_LOGGING = False
 
 METRIC_TYPES = {
-  'hmemused': ('host_memory_used', 'bytes'),
-  'hmemtotal': ('host_memory_total', 'bytes'),
-  'hmemalloc': ('host_memory_allocated', 'bytes')
+  'memoryused': ('host_memory_used', 'bytes'),
+  'memorytotal': ('host_memory_total', 'bytes'),
+  'memoryallocated': ('host_memory_allocated', 'bytes')
 }
 
 METRIC_DELIM = '.'
@@ -43,13 +43,14 @@ def get_stats():
                 }) 
   except:
      	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
-  for  host in cloudstack.hosts_stats():
+  for  host in hypervisors:
 	metricname = METRIC_DELIM.join([ host['name'].lower(), host['podname'].lower(), 'memoryused' ])
 	try:
         	stats[metricname] = host['memoryused'] 
+  		logger('verb', "readings :  %s memory used %s " % (host['name'], host['memoryused']))
 	except (TypeError, ValueError), e:
         	pass
-	return stats	
+  return stats	
 
 
 
@@ -90,6 +91,8 @@ def read_callback():
   for key,value in info.items():
     key_prefix = ''
     key_root = key
+    logger('verb', "read_callback key %s" % (key))
+    logger('verb', "read_callback value %s" % (value))
     if not value in METRIC_TYPES:
       try:
         key_prefix, key_root = key.rsplit(METRIC_DELIM,1)
@@ -100,6 +103,7 @@ def read_callback():
 
     key_root, val_type = METRIC_TYPES[key_root]
     key_name = METRIC_DELIM.join([key_prefix, key_root])
+    logger('verb', "key_name %s" % (key_name))
     val = collectd.Values(plugin=NAME, type=val_type)
     val.type_instance = key_name
     val.values = [ value ]
