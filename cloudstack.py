@@ -45,9 +45,9 @@ def get_stats():
   except:
      	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
   for  h in hypervisors:
-	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memoryused' ])
-	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memorytotal' ])
-	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), h['zonename'].lower(), 'memoryallocated' ])
+	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryused' ])
+	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memorytotal' ])
+	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryallocated' ])
 	try:
         	stats[metricnameMemUsed] = h['memoryused'] 
         	stats[metricnameMemTotal] = h['memorytotal'] 
