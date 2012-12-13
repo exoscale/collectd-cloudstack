@@ -57,8 +57,9 @@ def get_stats():
         	stats[metricnameMemUsed] = h['memoryused'] 
         	stats[metricnameMemTotal] = h['memorytotal'] 
         	stats[metricnameMemAlloc] = h['memoryallocated'] 
-        	stats[metricnameDiskAlloc] = h['disksizeallocated'] 
-        	stats[metricnameDiskTotal] = h['disksizetotal'] 
+        	if h['islocalstorageactive']:
+			stats[metricnameDiskAlloc] = h['disksizeallocated'] 
+        		stats[metricnameDiskTotal] = h['disksizetotal'] 
   		logger('verb', "readings :  %s memory used %s " % (h['name'], h['memoryused']))
 	except (TypeError, ValueError), e:
         	pass
