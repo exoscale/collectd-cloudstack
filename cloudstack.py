@@ -26,7 +26,10 @@ METRIC_TYPES = {
   'memoryused': ('h_memory_used', 'memory'),
   'memorytotal': ('h_memory_total', 'memory'),
   'memoryallocated': ('h_memory_allocated', 'memory'),
-  'activeviewersessions': ('console_active_sessions', 'current')
+  'activeviewersessions': ('console_active_sessions', 'current'),
+  'disksizeallocated': ('h_disk_allocated', 'bytes'),
+  'disksizetotal': ('h_disk_total', 'bytes')
+  
 }
 
 METRIC_DELIM = '.'
@@ -43,15 +46,19 @@ def get_stats():
                         'type': 'Routing'
                 }) 
   except:
-     	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
+     	logger('warn', "status err Unable to connect to CloudStack URL at %s for Hosts" % API_MONITORS)
   for  h in hypervisors:
 	metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryused' ])
 	metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memorytotal' ])
 	metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryallocated' ])
+	metricnameDiskAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizeallocated' ])
+	metricnameDiskTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizetotal' ])
 	try:
         	stats[metricnameMemUsed] = h['memoryused'] 
         	stats[metricnameMemTotal] = h['memorytotal'] 
         	stats[metricnameMemAlloc] = h['memoryallocated'] 
+        	stats[metricnameDiskAlloc] = h['disksizeallocated'] 
+        	stats[metricnameDiskTotal] = h['disksizetotal'] 
   		logger('verb', "readings :  %s memory used %s " % (h['name'], h['memoryused']))
 	except (TypeError, ValueError), e:
         	pass
@@ -60,13 +67,19 @@ def get_stats():
 		'systemvmtype': 'consoleproxy'
 		})
   except:
-     	logger('warn', "status err Unable to connect to CloudStack URL at %s" % API_MONITORS)
+     	logger('warn', "status err Unable to connect to CloudStack URL at %s for SystemVms" % API_MONITORS)
 
   for systemvm in systemvms:
 	metricnameSessions = METRIC_DELIM.join([ systemvm['name'].lower(), h['podid'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'activeviewersessions' ])
 	if 'activeviewersessions' in systemvm:
 		stats[metricnameSessions] = systemvm['activeviewersessions']
-
+  
+  try:
+        capacities = cloudstack.listCapacity({
+                })  
+  except:
+        logger('warn', "status err Unable to connect to CloudStack URL at %s for Capacity" % API_MONITORS)	
+  
   return stats	
 
 

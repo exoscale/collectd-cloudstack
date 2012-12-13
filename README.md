@@ -3,6 +3,20 @@ collectd-cloudstack
 This is a plugin for collecting stats from the CloudStack API. It can get information about zones, pods, storage, clusters and hosts.
 It requires the python plugin in collectd in order to gather data.
 
+The values collected are :
+
+* Number of instances : Total
+* Public IPs: Total and Used
+* Private IPs: Total and Used
+* Memory: Total (with and without over-provisioning), Allocated and Used
+* CPU: Total (with and without over-provisioning), Allocated and Used
+* Primary Storage: Total (with and without over-provisioning), Allocated and Used
+* Secondary Storage: Total and Used
+* LocaStorage : Total and Used
+* Network: Read and Write
+* Console Proxy : Number of active sessions
+
+
 Requirements
 ------------
 
