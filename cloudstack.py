@@ -107,7 +107,7 @@ def get_stats():
   stats = dict()
   
   logger('verb', "get_stats calls API %s KEY %s SECRET %s" % (API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS))
-  cloudstack = CloudStack.Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
+  cloudstack = Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
   try:
  	hypervisors = cloudstack.listHosts({
                         'type': 'Routing'
