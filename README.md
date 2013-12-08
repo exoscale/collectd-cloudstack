@@ -5,7 +5,7 @@ It requires the python plugin in collectd in order to gather data.
 
 The values collected are :
 
-* Number of instances : Total
+* Number of instances : Total, Running and Stopped
 * Public IPs: Total and Used
 * Private IPs: Total and Used
 * Memory: Total (with and without over-provisioning), Allocated and Used
@@ -59,3 +59,7 @@ Example
 	</Module>
     </Plugin>
 
+Credits
+-------
+
+In production use at [exoscale](https://www.exoscale.ch) and licensed under the MIT License.
