@@ -4,6 +4,7 @@
 # Description : This is a collectd python module to gather stats from cloudstack
 # inspired by collectd-haproxy from Michael Leinartas - https://github.com/mleinart/collectd-haproxy
 
+from __future__ import division
 import collectd
 import urllib2
 import urllib
@@ -126,6 +127,9 @@ METRIC_TYPES = {
     'zonepubliciptotal': ('z_public_ip_total', 'current'),
     'zonepublicippercent': ('z_public_ip_percent', 'percent'),
     'zonevmtotal': ('z_vm_total', 'current'),
+    'zonerootdiskavgsize': ('z_disksize_avg', 'current'),
+    'zonevmramavgsize': ('z_vm_ram_avg', 'current'),
+    'zonevmcpuavgsize': ('z_vm_cpu_avg', 'current'),
     'zonevmtotalrunning': ('z_vm_total_running', 'current'),
     'zonevmtotalstopped': ('z_vm_total_stopped', 'current'),
     'zonevmtotalstarting': ('z_vm_total_starting', 'current'),
@@ -296,7 +300,8 @@ def get_stats():
         metricnameZonesCount = METRIC_DELIM.join([ 'zonescount',  'zonescount' ])
         metricnameZonesCount = METRIC_DELIM.join([ 'zonescount',  'zonescount' ])
         metricnameHostZoneTotal = METRIC_DELIM.join([ 'zonehosttotal', zone['name'].lower(),  'zonehosttotal' ])
-
+        metricnameVMZoneRAMavgSize= METRIC_DELIM.join([ 'zonevmramavgsize', zone['name'].lower(),  'zonevmramavgsize' ])
+        metricnameVMZoneCPUavgSize= METRIC_DELIM.join([ 'zonevmcpuavgsize', zone['name'].lower(),  'zonevmcpuavgsize' ])
 
         # collect number of virtual machines 
         try:
@@ -326,16 +331,26 @@ def get_stats():
                 all_virtualmachines.extend(virtualmachines)
             virtualmachines = all_virtualmachines
             logger('verb', "Completed listVirtualMachines API call")
-                
+            
+
+    
         except:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVms" % API_MONITORS)
 
+        
+        
+        
+        
         virtualMachineZoneRunningCount = 0
         virtualMachineZoneStoppedCount = 0
         virtualMachineZoneStartingCount = 0
         virtualMachineZoneStoppingCount = 0
+        cpu = 0
+        ram = 0
 
         for virtualmachine in virtualmachines:
+            cpu += virtualmachine['cpunumber']
+            ram += virtualmachine['memory']
             if virtualmachine['state'] == 'Running':
                 virtualMachineZoneRunningCount = virtualMachineZoneRunningCount + 1
             elif virtualmachine['state'] == 'Stopped':
@@ -344,7 +359,12 @@ def get_stats():
                 virtualMachineZoneStartingCount = virtualMachineZoneStartingCount + 1
             elif virtualmachine['state'] == 'Starting':
                 virtualMachineZoneStoppingCount = virtualMachineZoneStoppingCount + 1
-
+        
+        ram = (ram / 1024)
+        ramavg = (ram/len(virtualmachines))
+        cpuavg = (cpu/len(virtualmachines))
+        stats[metricnameVMZoneRAMavgSize] = ramavg
+        stats[metricnameVMZoneCPUavgSize] = cpuavg
         stats[metricnameVmZoneTotal] = len(virtualmachines)
         stats[metricnameVmZoneTotalRunning] = virtualMachineZoneRunningCount
         stats[metricnameVmZoneTotalStopped] = virtualMachineZoneStoppedCount
@@ -383,8 +403,10 @@ def get_stats():
         except:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVolumes" % API_MONITORS)
 
-        
+        rootvolsize = 0 
         for rootvolume in rootvolumes:
+            rootvolsize += rootvolume['size']
+
             if rootvolume['vmstate'] == 'Running':
                 #add to a dict to get the Running VMs per hypervisor
                 host = (rootvolume['storage'])
@@ -413,6 +435,12 @@ def get_stats():
                     hvmstarting[host] += 1
                 else:
                     hvmstarting[host] = 1
+
+        rootvolsize = (rootvolsize / 1073741824)
+        rootavgsize = rootvolsize / len(rootvolumes)
+        metricnameRootAvgSizeZone= METRIC_DELIM.join([ 'zonerootdiskavgsize', zone['name'].lower(),  'zonerootdiskavgsize' ])
+        stats[metricnameRootAvgSizeZone] = rootavgsize
+     
         #add metric VMs per hypervisor
         for h in hypervisors:
             virtualMachineHTotalCount = 0
