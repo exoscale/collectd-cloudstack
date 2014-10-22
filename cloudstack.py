@@ -298,7 +298,6 @@ def get_stats():
         metricnameVmZoneTotalStarting = METRIC_DELIM.join([ 'zonevmtotalstarting', zone['name'].lower(),  'zonevmtotalstarting' ])
         metricnameVmZoneTotal = METRIC_DELIM.join([ 'zonevmtotal', zone['name'].lower(),  'zonevmtotal' ])
         metricnameZonesCount = METRIC_DELIM.join([ 'zonescount',  'zonescount' ])
-        metricnameZonesCount = METRIC_DELIM.join([ 'zonescount',  'zonescount' ])
         metricnameHostZoneTotal = METRIC_DELIM.join([ 'zonehosttotal', zone['name'].lower(),  'zonehosttotal' ])
         metricnameVMZoneRAMavgSize= METRIC_DELIM.join([ 'zonevmramavgsize', zone['name'].lower(),  'zonevmramavgsize' ])
         metricnameVMZoneCPUavgSize= METRIC_DELIM.join([ 'zonevmcpuavgsize', zone['name'].lower(),  'zonevmcpuavgsize' ])
