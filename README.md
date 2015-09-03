@@ -37,7 +37,7 @@ API key from an account on the root level.
 * `Secret`  
 Associated API Secret from the account.
 * `Verbose`  
-Vervose logging. Default to false.
+Verbose logging. Default to false.
 
 Example
 -------
