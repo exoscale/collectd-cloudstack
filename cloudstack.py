@@ -15,29 +15,31 @@ import hashlib
 import re
 import time
 
+
 class BaseClient(object):
+
     def __init__(self, api, apikey, secret):
         self.api = api
         self.apikey = apikey
         self.secret = secret
 
     def request(self, command, args):
-        args['apikey']   = self.apikey
-        args['command']  = command
+        args['apikey'] = self.apikey
+        args['command'] = command
         args['response'] = 'json'
-        
-        params=[]
-        
+
+        params = []
+
         keys = sorted(args.keys())
 
         for k in keys:
             params.append(k + '=' + urllib.quote_plus(args[k]).replace("+", "%20"))
-       
+
         query = '&'.join(params)
 
         signature = base64.b64encode(hmac.new(
-            self.secret, 
-            msg=query.lower(), 
+            self.secret,
+            msg=query.lower(),
             digestmod=hashlib.sha1
         ).digest())
 
@@ -45,9 +47,9 @@ class BaseClient(object):
 
         response = urllib2.urlopen(self.api + '?' + query)
         decoded = json.loads(response.read())
-       
+
         propertyResponse = command.lower() + 'response'
-        if not propertyResponse in decoded:
+        if propertyResponse not in decoded:
             if 'errorresponse' in decoded:
                 raise RuntimeError("ERROR: " + decoded['errorresponse']['errortext'])
             else:
@@ -56,7 +58,7 @@ class BaseClient(object):
         response = decoded[propertyResponse]
         result = re.compile(r"^list(\w+)s").match(command.lower())
 
-        if not result is None:
+        if result is not None:
             type = result.group(1)
 
             if type in response:
@@ -70,19 +72,21 @@ class BaseClient(object):
 
         return response
 
+
 class Client(BaseClient):
+
     def listHosts(self, args={}):
         return self.request('listHosts', args)
-        
+
     def listCapabilities(self, args={}):
         return self.request('listCapabilities', args)
-        
+
     def listCapacity(self, args={}):
         return self.request('listCapacity', args)
-        
+
     def listSystemVms(self, args={}):
         return self.request('listSystemVms', args)
-        
+
     def listZones(self, args={}):
         return self.request('listZones', args)
 
@@ -92,16 +96,13 @@ class Client(BaseClient):
     def listAccounts(self, args={}):
         return self.request('listAccounts', args)
 
-    def listCapacity(self, args={}):
-        return self.request('listCapacity', args)
-
     def listVolumes(self, args={}):
         return self.request('listVolumes', args)
 
     def listAsyncJobs(self, args={}):
         return self.request('listAsyncJobs', args)
-        
-        
+
+
 NAME = 'cloudstack'
 
 DEFAULT_API = 'http://localhost:8096/client/api'
@@ -157,11 +158,12 @@ METRIC_TYPES = {
     'zonecapadiskallocused': ('z_capacity_allocated_disk_used', 'current'),
     'zonecapadiskallocpercentused': ('z_capacity_allocated_disk_percent-used', 'current'),
     'asyncjobscount': ('g_async_jobs_count', 'current')
-    }
+}
 
 METRIC_DELIM = '.'
 
 hypervisors = []
+
 
 def get_stats():
     stats = dict()
@@ -171,19 +173,19 @@ def get_stats():
     hvmstarting = dict()
 
     logger('verb', "get_stats calls API %s KEY %s SECRET %s" % (API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS))
-    cloudstack = Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)	
+    cloudstack = Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)
     try:
         logger('verb', "Performing listhosts API call")
         query_tmp = None
         querypage = 1
         querypagesize = 500
         hypervisors = cloudstack.listHosts({
-                        'type': 'Routing',
-                        'resourcestate': 'Enabled',
-                        'page': str(querypage),
-                        'pagesize': str(querypagesize),
-                        'state': 'Up'
-                        })
+            'type': 'Routing',
+            'resourcestate': 'Enabled',
+            'page': str(querypage),
+            'pagesize': str(querypagesize),
+            'state': 'Up'
+        })
         all_hypervisors = []
         if len(hypervisors) == querypagesize:
             query_tmp = hypervisors
@@ -191,49 +193,49 @@ def get_stats():
                 all_hypervisors.extend(query_tmp)
                 querypage = querypage + 1
                 query_tmp = cloudstack.listHosts({
-                            'type': 'Routing',
-                            'resourcestate': 'Enabled',
-                            'page': str(querypage),
-                            'pagesize': str(querypagesize),
-                            'state': 'Up'
-                            })
+                    'type': 'Routing',
+                    'resourcestate': 'Enabled',
+                    'page': str(querypage),
+                    'pagesize': str(querypagesize),
+                    'state': 'Up'
+                })
         else:
             all_hypervisors.extend(hypervisors)
         hypervisors = all_hypervisors
         logger('verb', "Completed listhosts API call")
 
-    except:
+    except Exception:
         logger('warn', "status err Unable to connect to CloudStack URL at %s for Hosts" % API_MONITORS)
 
-    for  h in hypervisors:
-        metricnameMemUsed = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryused' ])
-        metricnameMemTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memorytotal' ])
-        metricnameMemAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryallocated' ])
-        metricnameCpuAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'cpuallocated' ])
-        #metricnameDiskAlloc = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizeallocated' ])
-        #metricnameDiskTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizetotal' ])
+    for h in hypervisors:
+        metricnameMemUsed = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryused'])
+        metricnameMemTotal = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memorytotal'])
+        metricnameMemAlloc = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'memoryallocated'])
+        metricnameCpuAlloc = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'cpuallocated'])
+        # metricnameDiskAlloc = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizeallocated'])
+        # metricnameDiskTotal = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'disksizetotal'])
     try:
-        stats[metricnameMemUsed] = h['memoryused'] 
-        stats[metricnameMemTotal] = h['memorytotal'] 
+        stats[metricnameMemUsed] = h['memoryused']
+        stats[metricnameMemTotal] = h['memorytotal']
         stats[metricnameMemAlloc] = h['memoryallocated']
         cpuallocated = h['cpuallocated'].replace("%", "")
         stats[metricnameCpuAlloc] = cpuallocated
         logger('verb', "readings :  %s memory used %s " % (h['name'], h['memoryused']))
 
-    except (TypeError, ValueError), e:
+    except (TypeError, ValueError):
         pass
 
-  # collect number of active console sessions
+    # collect number of active console sessions
     try:
         logger('verb', "Performing listSystemVms API call")
         query_tmp = None
         querypage = 1
         querypagesize = 500
         systemvms = cloudstack.listSystemVms({
-                    'systemvmtype': 'consoleproxy',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize)
-                    })
+            'systemvmtype': 'consoleproxy',
+            'page': str(querypage),
+            'pagesize': str(querypagesize)
+        })
         all_systemvms = []
         if len(systemvms) == querypagesize:
             query_tmp = systemvms
@@ -241,34 +243,34 @@ def get_stats():
                 all_systemvms.extend(query_tmp)
                 querypage = querypage + 1
                 query_tmp = cloudstack.listSystemVms({
-                            'systemvmtype': 'consoleproxy',
-                            'page': str(querypage),
-                            'pagesize': str(querypagesize)
-                            })
+                    'systemvmtype': 'consoleproxy',
+                    'page': str(querypage),
+                    'pagesize': str(querypagesize)
+                })
         else:
             all_systemvms.extend(systemvms)
         systemvms = all_systemvms
         logger('verb', "Completed listSystemVms API call")
 
-    except:
+    except Exception:
         logger('warn', "status err Unable to connect to CloudStack URL at %s for SystemVms" % API_MONITORS)
 
     for systemvm in systemvms:
-        metricnameSessions = METRIC_DELIM.join([ 'activeviewersessions', systemvm['zonename'].lower(), systemvm['name'].lower(), 'activeviewersessions' ])
+        metricnameSessions = METRIC_DELIM.join(['activeviewersessions', systemvm['zonename'].lower(), systemvm['name'].lower(), 'activeviewersessions'])
         if 'activeviewersessions' in systemvm:
             stats[metricnameSessions] = systemvm['activeviewersessions']
 
-  # collect number of zones, available public ips and VMs
+    # collect number of zones, available public ips and VMs
     try:
         logger('verb', "Performing listZones API call")
         query_tmp = None
         querypage = 1
         querypagesize = 500
         zones = cloudstack.listZones({
-                'showcapacities': 'true',
-                'page': str(querypage),
-                'pagesize': str(querypagesize)
-                })
+            'showcapacities': 'true',
+            'page': str(querypage),
+            'pagesize': str(querypagesize)
+        })
         all_zones = []
         if len(zones) == querypagesize:
             query_tmp = zones
@@ -276,44 +278,44 @@ def get_stats():
                 all_zones.extend(query_tmp)
                 querypage = querypage + 1
                 query_tmp = cloudstack.listZones({
-                            'showcapacities': 'true',
-                            'page': str(querypage),
-                            'pagesize': str(querypagesize)
-                            })
+                    'showcapacities': 'true',
+                    'page': str(querypage),
+                    'pagesize': str(querypagesize)
+                })
         else:
             all_zones.extend(zones)
         zones = all_zones
         logger('verb', "Completed listZones API call")
 
-    except:
+    except Exception:
         logger('warn', "status err Unable to connect to CloudStack URL at %s for ListZone" % API_MONITORS)
 
     for zone in zones:
-        metricnameIpAllocated = METRIC_DELIM.join([ 'zonepublicipallocated', zone['name'].lower(),  'zonepublicipallocated' ])
-        metricnameIpTotal = METRIC_DELIM.join([ 'zonepubliciptotal', zone['name'].lower(),  'zonepubliciptotal' ])
-        metricnameIpAllocatedPercent = METRIC_DELIM.join([ 'zonepublicippercent', zone['name'].lower(),  'zonepublicippercent' ])
-        metricnameVmZoneTotalRunning = METRIC_DELIM.join([ 'zonevmtotalrunning', zone['name'].lower(),  'zonevmtotalrunning' ])
-        metricnameVmZoneTotalStopped = METRIC_DELIM.join([ 'zonevmtotalstopped', zone['name'].lower(),  'zonevmtotalstopped' ])
-        metricnameVmZoneTotalStopping = METRIC_DELIM.join([ 'zonevmtotalstopping', zone['name'].lower(),  'zonevmtotalstopping' ])
-        metricnameVmZoneTotalStarting = METRIC_DELIM.join([ 'zonevmtotalstarting', zone['name'].lower(),  'zonevmtotalstarting' ])
-        metricnameVmZoneTotal = METRIC_DELIM.join([ 'zonevmtotal', zone['name'].lower(),  'zonevmtotal' ])
-        metricnameZonesCount = METRIC_DELIM.join([ 'zonescount',  'zonescount' ])
-        metricnameHostZoneTotal = METRIC_DELIM.join([ 'zonehosttotal', zone['name'].lower(),  'zonehosttotal' ])
-        metricnameVMZoneRAMavgSize= METRIC_DELIM.join([ 'zonevmramavgsize', zone['name'].lower(),  'zonevmramavgsize' ])
-        metricnameVMZoneCPUavgSize= METRIC_DELIM.join([ 'zonevmcpuavgsize', zone['name'].lower(),  'zonevmcpuavgsize' ])
+        metricnameIpAllocated = METRIC_DELIM.join(['zonepublicipallocated', zone['name'].lower(),  'zonepublicipallocated'])
+        metricnameIpTotal = METRIC_DELIM.join(['zonepubliciptotal', zone['name'].lower(),  'zonepubliciptotal'])
+        metricnameIpAllocatedPercent = METRIC_DELIM.join(['zonepublicippercent', zone['name'].lower(),  'zonepublicippercent'])
+        metricnameVmZoneTotalRunning = METRIC_DELIM.join(['zonevmtotalrunning', zone['name'].lower(),  'zonevmtotalrunning'])
+        metricnameVmZoneTotalStopped = METRIC_DELIM.join(['zonevmtotalstopped', zone['name'].lower(),  'zonevmtotalstopped'])
+        metricnameVmZoneTotalStopping = METRIC_DELIM.join(['zonevmtotalstopping', zone['name'].lower(),  'zonevmtotalstopping'])
+        metricnameVmZoneTotalStarting = METRIC_DELIM.join(['zonevmtotalstarting', zone['name'].lower(),  'zonevmtotalstarting'])
+        metricnameVmZoneTotal = METRIC_DELIM.join(['zonevmtotal', zone['name'].lower(),  'zonevmtotal'])
+        metricnameZonesCount = METRIC_DELIM.join(['zonescount',  'zonescount'])
+        metricnameHostZoneTotal = METRIC_DELIM.join(['zonehosttotal', zone['name'].lower(),  'zonehosttotal'])
+        metricnameVMZoneRAMavgSize = METRIC_DELIM.join(['zonevmramavgsize', zone['name'].lower(),  'zonevmramavgsize'])
+        metricnameVMZoneCPUavgSize = METRIC_DELIM.join(['zonevmcpuavgsize', zone['name'].lower(),  'zonevmcpuavgsize'])
 
-        # collect number of virtual machines 
+        # collect number of virtual machines
         try:
             logger('verb', "Performing listVirtualMachines API call")
             query_tmp = None
             querypage = 1
             querypagesize = 500
             virtualmachines = cloudstack.listVirtualMachines({
-                                'listall': 'true',
-                                'details': 'all',
-                                'page': str(querypage),
-                                'pagesize': str(querypagesize)
-                                })
+                'listall': 'true',
+                'details': 'all',
+                'page': str(querypage),
+                'pagesize': str(querypagesize)
+            })
             all_virtualmachines = []
             if len(virtualmachines) == querypagesize:
                 query_tmp = virtualmachines
@@ -321,25 +323,19 @@ def get_stats():
                     all_virtualmachines.extend(query_tmp)
                     querypage = querypage + 1
                     query_tmp = cloudstack.listVirtualMachines({
-                                'listall': 'true',
-                                'details': 'all',
-                                'page': str(querypage),
-                                'pagesize': str(querypagesize)
-                                })
+                        'listall': 'true',
+                        'details': 'all',
+                        'page': str(querypage),
+                        'pagesize': str(querypagesize)
+                    })
             else:
                 all_virtualmachines.extend(virtualmachines)
             virtualmachines = all_virtualmachines
             logger('verb', "Completed listVirtualMachines API call")
-            
 
-    
-        except:
+        except Exception:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVms" % API_MONITORS)
 
-        
-        
-        
-        
         virtualMachineZoneRunningCount = 0
         virtualMachineZoneStoppedCount = 0
         virtualMachineZoneStartingCount = 0
@@ -358,10 +354,10 @@ def get_stats():
                 virtualMachineZoneStartingCount = virtualMachineZoneStartingCount + 1
             elif virtualmachine['state'] == 'Starting':
                 virtualMachineZoneStoppingCount = virtualMachineZoneStoppingCount + 1
-        
+
         ram = (ram / 1024)
-        ramavg = (ram/len(virtualmachines))
-        cpuavg = (cpu/len(virtualmachines))
+        ramavg = (ram / len(virtualmachines))
+        cpuavg = (cpu / len(virtualmachines))
         stats[metricnameVMZoneRAMavgSize] = ramavg
         stats[metricnameVMZoneCPUavgSize] = cpuavg
         stats[metricnameVmZoneTotal] = len(virtualmachines)
@@ -370,18 +366,18 @@ def get_stats():
         stats[metricnameVmZoneTotalStopping] = virtualMachineZoneStoppingCount
         stats[metricnameVmZoneTotalStarting] = virtualMachineZoneStartingCount
 
-        # collect number of root volumes 
+        # collect number of root volumes
         try:
             logger('verb', "Performing listVolumes API call")
             query_tmp = None
             querypage = 1
             querypagesize = 500
             rootvolumes = cloudstack.listVolumes({
-                            'listall': 'true',
-                            'type': 'ROOT',
-                            'page': str(querypage),
-                            'pagesize': str(querypagesize)
-                            })
+                'listall': 'true',
+                'type': 'ROOT',
+                'page': str(querypage),
+                'pagesize': str(querypagesize)
+            })
             all_rootvolumes = []
             if len(rootvolumes) == querypagesize:
                 query_tmp = rootvolumes
@@ -389,46 +385,46 @@ def get_stats():
                     all_rootvolumes.extend(query_tmp)
                     querypage = querypage + 1
                     query_tmp = cloudstack.listVolumes({
-                                'listall': 'true',
-                                'type': 'ROOT',
-                                'page': str(querypage),
-                                'pagesize': str(querypagesize)
-                                })
+                        'listall': 'true',
+                        'type': 'ROOT',
+                        'page': str(querypage),
+                        'pagesize': str(querypagesize)
+                    })
             else:
                 all_rootvolumes.extend(rootvolumes)
             rootvolumes = all_rootvolumes
             logger('verb', "Completed listVolumes API call")
-            
-        except:
+
+        except Exception:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVolumes" % API_MONITORS)
 
-        rootvolsize = 0 
+        rootvolsize = 0
         for rootvolume in rootvolumes:
             rootvolsize += rootvolume['size']
 
             if rootvolume['vmstate'] == 'Running':
-                #add to a dict to get the Running VMs per hypervisor
+                # add to a dict to get the Running VMs per hypervisor
                 host = (rootvolume['storage'])
                 if host in hvmrunning:
                     hvmrunning[host] += 1
                 else:
                     hvmrunning[host] = 1
-            elif rootvolume['vmstate'] == 'Stopped':
-                #add to a dict to get the Stopped VMs per hypervisor
+            elif rootvolume['vmstate'] == 'Stopped' and not rootvolume['state'] == 'Allocated':
+                # add to a dict to get the Stopped VMs per hypervisor
                 host = (rootvolume['storage'])
                 if host in hvmstopped:
                     hvmstopped[host] += 1
                 else:
                     hvmstopped[host] = 1
             elif rootvolume['vmstate'] == 'Stopping':
-                #add to a dict to get the Stopping VMs per hypervisor
+                # add to a dict to get the Stopping VMs per hypervisor
                 host = (rootvolume['storage'])
                 if host in hvmstopping:
                     hvmstopping[host] += 1
                 else:
                     hvmstopping[host] = 1
             elif rootvolume['vmstate'] == 'Starting':
-                #add to a dict to get the Starting VMs per hypervisor
+                # add to a dict to get the Starting VMs per hypervisor
                 host = (rootvolume['storage'])
                 if host in hvmstarting:
                     hvmstarting[host] += 1
@@ -437,17 +433,17 @@ def get_stats():
 
         rootvolsize = (rootvolsize / 1073741824)
         rootavgsize = rootvolsize / len(rootvolumes)
-        metricnameRootAvgSizeZone= METRIC_DELIM.join([ 'zonerootdiskavgsize', zone['name'].lower(),  'zonerootdiskavgsize' ])
+        metricnameRootAvgSizeZone = METRIC_DELIM.join(['zonerootdiskavgsize', zone['name'].lower(),  'zonerootdiskavgsize'])
         stats[metricnameRootAvgSizeZone] = rootavgsize
-     
-        #add metric VMs per hypervisor
+
+        # add metric VMs per hypervisor
         for h in hypervisors:
             virtualMachineHTotalCount = 0
-            metricnameVmHTotal = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotal' ])
-            metricnameVmHTotalRunning = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalrunning' ])
-            metricnameVmHTotalStarting = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstarting' ])
-            metricnameVmHTotalStopping = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstopping' ])
-            metricnameVmHTotalStopped = METRIC_DELIM.join([ h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstopped' ])
+            metricnameVmHTotal = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotal'])
+            metricnameVmHTotalRunning = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalrunning'])
+            metricnameVmHTotalStarting = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstarting'])
+            metricnameVmHTotalStopping = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstopping'])
+            metricnameVmHTotalStopped = METRIC_DELIM.join([h['name'].lower(), h['podname'].lower(), re.sub(r"\s+", '-', h['zonename'].lower()), 'hvmtotalstopped'])
 
             hname = h['name'].lower()
             if hname in hvmrunning:
@@ -470,9 +466,8 @@ def get_stats():
                 stats[metricnameVmHTotalStopped] = hvmstopped[hname]
             else:
                 stats[metricnameVmHTotalStopped] = 0
-            
-            stats[metricnameVmHTotal] = virtualMachineHTotalCount
 
+            stats[metricnameVmHTotal] = virtualMachineHTotalCount
 
         for capacity in zone['capacity']:
             if capacity['type'] == 8:
@@ -482,19 +477,18 @@ def get_stats():
 
     stats[metricnameZonesCount] = len(zones)
     stats[metricnameHostZoneTotal] = len(hypervisors)
- 
 
-  # collect accounts
+    # collect accounts
     try:
         logger('verb', "Performing listAccounts API call")
         query_tmp = None
         querypage = 1
         querypagesize = 500
         accounts = cloudstack.listAccounts({
-                    'listall': 'true',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize)
-                    })
+            'listall': 'true',
+            'page': str(querypage),
+            'pagesize': str(querypagesize)
+        })
         all_accounts = []
         if len(accounts) == querypagesize:
             query_tmp = accounts
@@ -502,20 +496,20 @@ def get_stats():
                 all_accounts.extend(query_tmp)
                 querypage = querypage + 1
                 query_tmp = cloudstack.listAccounts({
-                            'listall': 'true',
-                            'page': str(querypage),
-                            'pagesize': str(querypagesize)
-                            })
+                    'listall': 'true',
+                    'page': str(querypage),
+                    'pagesize': str(querypagesize)
+                })
         else:
             all_accounts.extend(accounts)
         accounts = all_accounts
         logger('verb', "Completed listAccounts API call")
-    except:
+    except Exception:
         print("status err Unable to connect to CloudStack URL at %s for ListAccounts")
 
-    metricnameAccountsTotal = METRIC_DELIM.join([ 'accounts',  'accountscount' ])
-    metricnameAccountsTotalEnabled = METRIC_DELIM.join([ 'accounts',  'accountenabled' ])
-    metricnameAccountsTotalDisabled = METRIC_DELIM.join([ 'accounts',  'accountdisabled' ])
+    metricnameAccountsTotal = METRIC_DELIM.join(['accounts',  'accountscount'])
+    metricnameAccountsTotalEnabled = METRIC_DELIM.join(['accounts',  'accountenabled'])
+    metricnameAccountsTotalDisabled = METRIC_DELIM.join(['accounts',  'accountdisabled'])
     accountsEnabledCount = 0
     accountsDisabledCount = 0
 
@@ -529,97 +523,64 @@ def get_stats():
     stats[metricnameAccountsTotalEnabled] = accountsEnabledCount
     stats[metricnameAccountsTotalDisabled] = accountsDisabledCount
 
-  # collect capacity
+    # collect capacity
     try:
         capacity = cloudstack.listCapacity()
-    except:
+    except Exception:
         print("status err Unable to connect to CloudStack URL at %s for ListCapacity")
-
 
     for c in capacity['capacity']:
         if c['type'] == 0:
-            metricnameCapaZoneMemoryTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapamemorytotal' ])
-            metricnameCapaZoneMemoryUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapamemoryused' ])
-            metricnameCapaZoneMemoryPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapamemorypercentused' ])
+            metricnameCapaZoneMemoryTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapamemorytotal'])
+            metricnameCapaZoneMemoryUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapamemoryused'])
+            metricnameCapaZoneMemoryPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapamemorypercentused'])
             stats[metricnameCapaZoneMemoryTotal] = c['capacitytotal']
             stats[metricnameCapaZoneMemoryUsed] = c['capacityused']
             stats[metricnameCapaZoneMemoryPercentUsed] = c['percentused']
         elif c['type'] == 1:
-            metricnameCapaZoneCpuTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapacputotal' ])
-            metricnameCapaZoneCpuUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapacpuused' ])
-            metricnameCapaZoneCpuPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapacpupercentused' ])
+            metricnameCapaZoneCpuTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapacputotal'])
+            metricnameCapaZoneCpuUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapacpuused'])
+            metricnameCapaZoneCpuPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapacpupercentused'])
             stats[metricnameCapaZoneCpuTotal] = c['capacitytotal']
             stats[metricnameCapaZoneCpuUsed] = c['capacityused']
             stats[metricnameCapaZoneCpuPercentUsed] = c['percentused']
         elif c['type'] == 2:
-            metricnameCapaZoneDiskTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadisktotal' ])
-            metricnameCapaZoneDiskUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadiskused' ])
-            metricnameCapaZoneDiskPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadiskpercentused' ])
+            metricnameCapaZoneDiskTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadisktotal'])
+            metricnameCapaZoneDiskUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadiskused'])
+            metricnameCapaZoneDiskPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadiskpercentused'])
             stats[metricnameCapaZoneDiskTotal] = c['capacitytotal']
             stats[metricnameCapaZoneDiskUsed] = c['capacityused']
             stats[metricnameCapaZoneDiskPercentUsed] = c['percentused']
         elif c['type'] == 5:
-            metricnameCapaZonePrivateipTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapaprivateiptotal' ])
-            metricnameCapaZonePrivateipUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapaprivateipused' ])
-            metricnameCapaZonePrivateipPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapaprivateippercentused' ])
+            metricnameCapaZonePrivateipTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapaprivateiptotal'])
+            metricnameCapaZonePrivateipUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapaprivateipused'])
+            metricnameCapaZonePrivateipPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapaprivateippercentused'])
             stats[metricnameCapaZonePrivateipTotal] = c['capacitytotal']
             stats[metricnameCapaZonePrivateipUsed] = c['capacityused']
             stats[metricnameCapaZonePrivateipPercentUsed] = c['percentused']
         elif c['type'] == 6:
-            metricnameCapaZoneSSTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapasstotal' ])
-            metricnameCapaZoneSSUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapassused' ])
-            metricnameCapaZoneSSPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapasspercentused' ])
+            metricnameCapaZoneSSTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapasstotal'])
+            metricnameCapaZoneSSUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapassused'])
+            metricnameCapaZoneSSPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapasspercentused'])
             stats[metricnameCapaZoneSSTotal] = c['capacitytotal']
             stats[metricnameCapaZoneSSUsed] = c['capacityused']
             stats[metricnameCapaZoneSSPercentUsed] = c['percentused']
         elif c['type'] == 9:
-            metricnameCapaZoneDiskAllocTotal = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadiskalloctotal' ])
-            metricnameCapaZoneDiskAllocUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadiskallocused' ])
-            metricnameCapaZoneDiskAllocPercentUsed = METRIC_DELIM.join([ 'zonecapacity', c['zonename'].lower(),  'zonecapadiskallocpercentused' ])
+            metricnameCapaZoneDiskAllocTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadiskalloctotal'])
+            metricnameCapaZoneDiskAllocUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadiskallocused'])
+            metricnameCapaZoneDiskAllocPercentUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapadiskallocpercentused'])
             stats[metricnameCapaZoneDiskAllocTotal] = c['capacitytotal']
             stats[metricnameCapaZoneDiskAllocUsed] = c['capacityused']
             stats[metricnameCapaZoneDiskAllocPercentUsed] = c['percentused']
 
-  # collect async jobs
-  # disabled as doing it from database in a separate script
-    #try:
-  #      logger('verb', "Performing listAsyncJobs API call")
-  #      query_tmp = None
-  #     querypage = 1
-  #     querypagesize = 500
-  #     jobs = cloudstack.listAsyncJobs({
-  #              'listall': 'true',
-  #              'page': str(querypage),
-  #              'pagesize': str(querypagesize)
-  #              })
-  #     all_jobs = []
-  #     if len(jobs) == querypagesize:
-  #     query_tmp = jobs
-  #         while len(query_tmp) > 1:
-  #             all_jobs.extend(query_tmp)
-  #             querypage = querypage + 1
-  #             query_tmp = cloudstack.listAsyncJobs({
-  #                         'listall': 'true',
-  #                         'page': str(querypage),
-  #                         'pagesize': str(querypagesize)
-  #                         })
-  #     else:
-  #         all_jobs.extend(jobs)
-  #     jobs = all_jobs
-  #     logger('verb', "Completed listAsyncJobs API call")
-  # except:
-  #     print("status err Unable to connect to CloudStack URL at %s for listAsyncJobs")
-  #
-  # metricnameJobsCount = METRIC_DELIM.join([ 'asyncjobscount',  'asyncjobscount' ])
-  # stats[metricnameJobsCount] = len(jobs)
-
-    time.sleep(SLEEPTIME)  
+    time.sleep(SLEEPTIME)
     return stats
+
 
 # callback configuration for module
 def configure_callback(conf):
     global API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS, AUTH_MONITORS, VERBOSE_LOGGING, SLEEPTIME
-    API_MONITORS = '' 
+    API_MONITORS = ''
     APIKEY_MONITORS = ''
     SECRET_MONITORS = ''
     AUTH_MONITORS = DEFAULT_AUTH
@@ -643,6 +604,7 @@ def configure_callback(conf):
     if not API_MONITORS:
         API_MONITORS += DEFAULT_API
 
+
 def read_callback():
     logger('verb', "beginning read_callback")
     info = get_stats()
@@ -651,17 +613,17 @@ def read_callback():
         logger('warn', "%s: No data received" % NAME)
         return
 
-    for key,value in info.items():
+    for key, value in info.items():
         key_prefix = ''
         key_root = key
         logger('verb', "read_callback key %s" % (key))
         logger('verb', "read_callback value %s" % (value))
-        if not value in METRIC_TYPES:
+        if value not in METRIC_TYPES:
             try:
-                key_prefix, key_root = key.rsplit(METRIC_DELIM,1)
-            except ValueError, e:
+                key_prefix, key_root = key.rsplit(METRIC_DELIM, 1)
+            except ValueError:
                 pass
-        if not key_root in METRIC_TYPES:
+        if key_root not in METRIC_TYPES:
             continue
 
         key_root, val_type = METRIC_TYPES[key_root]
@@ -669,7 +631,7 @@ def read_callback():
         logger('verb', "key_name %s" % (key_name))
         val = collectd.Values(plugin=NAME, type=val_type)
         val.type_instance = key_name
-        val.values = [ value ]
+        val.values = [value]
         val.dispatch()
 
 
