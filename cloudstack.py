@@ -13,8 +13,8 @@ import hmac
 import base64
 import hashlib
 import re
-import time
 
+RUN = 0
 
 class BaseClient(object):
 
@@ -573,19 +573,18 @@ def get_stats():
             stats[metricnameCapaZoneDiskAllocUsed] = c['capacityused']
             stats[metricnameCapaZoneDiskAllocPercentUsed] = c['percentused']
 
-    time.sleep(SLEEPTIME)
     return stats
 
 
 # callback configuration for module
 def configure_callback(conf):
-    global API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS, AUTH_MONITORS, VERBOSE_LOGGING, SLEEPTIME
+    global API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS, AUTH_MONITORS, VERBOSE_LOGGING, SKIP
     API_MONITORS = ''
     APIKEY_MONITORS = ''
     SECRET_MONITORS = ''
     AUTH_MONITORS = DEFAULT_AUTH
     VERBOSE_LOGGING = False
-    SLEEPTIME = 300
+    SKIP = 10
 
     for node in conf.children:
         if node.key == "Api":
@@ -598,6 +597,8 @@ def configure_callback(conf):
             AUTH_MONITORS = node.values[0]
         elif node.key == "Verbose":
             VERBOSE_LOGGING = bool(node.values[0])
+        elif node.key == "Skip":
+            SKIP = int(node.values[0])
         else:
             logger('warn', 'Unknown config key: %s' % node.key)
 
@@ -606,6 +607,10 @@ def configure_callback(conf):
 
 
 def read_callback():
+    global RUN, SKIP
+    RUN += 1
+    if RUN % SKIP != 1:
+        return
     logger('verb', "beginning read_callback")
     info = get_stats()
 
