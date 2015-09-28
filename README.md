@@ -21,7 +21,10 @@ Requirements
 ------------
 
 *CloudStack*  
-In order to use this module, you need to have a valid API access on the root domain. This module has been tested and developped against CloudStack 3.0.x API.
+In order to use this module, you need to have a valid API access on the root domain. This module has been tested and developped against CloudStack 4.x API.
+
+*CS Client*
+CS client must be installed. See (<https://github.com/exoscale/cs>)
 
 *collectd*  
 collectd must have the Python plugin installed. See (<http://collectd.org/documentation/manpages/collectd-python.5.shtml>)

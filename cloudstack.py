@@ -5,103 +5,15 @@
 # inspired by collectd-haproxy from Michael Leinartas - https://github.com/mleinart/collectd-haproxy
 
 from __future__ import division
-import collectd
-import urllib2
-import urllib
-import json
-import hmac
-import base64
-import hashlib
 import re
+import collectd
+try:
+    from cs import CloudStack
+except ImportError:
+    print "Oupss, it looks like CS client isn't installed. Please install it using pip install cs"
+    raise
 
 RUN = 0
-
-class BaseClient(object):
-
-    def __init__(self, api, apikey, secret):
-        self.api = api
-        self.apikey = apikey
-        self.secret = secret
-
-    def request(self, command, args):
-        args['apikey'] = self.apikey
-        args['command'] = command
-        args['response'] = 'json'
-
-        params = []
-
-        keys = sorted(args.keys())
-
-        for k in keys:
-            params.append(k + '=' + urllib.quote_plus(args[k]).replace("+", "%20"))
-
-        query = '&'.join(params)
-
-        signature = base64.b64encode(hmac.new(
-            self.secret,
-            msg=query.lower(),
-            digestmod=hashlib.sha1
-        ).digest())
-
-        query += '&signature=' + urllib.quote_plus(signature)
-
-        response = urllib2.urlopen(self.api + '?' + query)
-        decoded = json.loads(response.read())
-
-        propertyResponse = command.lower() + 'response'
-        if propertyResponse not in decoded:
-            if 'errorresponse' in decoded:
-                raise RuntimeError("ERROR: " + decoded['errorresponse']['errortext'])
-            else:
-                raise RuntimeError("ERROR: Unable to parse the response")
-
-        response = decoded[propertyResponse]
-        result = re.compile(r"^list(\w+)s").match(command.lower())
-
-        if result is not None:
-            type = result.group(1)
-
-            if type in response:
-                return response[type]
-            else:
-                # sometimes, the 's' is kept, as in :
-                # { "listasyncjobsresponse" : { "asyncjobs" : [ ... ] } }
-                type += 's'
-                if type in response:
-                    return response[type]
-
-        return response
-
-
-class Client(BaseClient):
-
-    def listHosts(self, args={}):
-        return self.request('listHosts', args)
-
-    def listCapabilities(self, args={}):
-        return self.request('listCapabilities', args)
-
-    def listCapacity(self, args={}):
-        return self.request('listCapacity', args)
-
-    def listSystemVms(self, args={}):
-        return self.request('listSystemVms', args)
-
-    def listZones(self, args={}):
-        return self.request('listZones', args)
-
-    def listVirtualMachines(self, args={}):
-        return self.request('listVirtualMachines', args)
-
-    def listAccounts(self, args={}):
-        return self.request('listAccounts', args)
-
-    def listVolumes(self, args={}):
-        return self.request('listVolumes', args)
-
-    def listAsyncJobs(self, args={}):
-        return self.request('listAsyncJobs', args)
-
 
 NAME = 'cloudstack'
 
@@ -165,6 +77,25 @@ METRIC_DELIM = '.'
 hypervisors = []
 
 
+def cs_list(method, key_name, **kwargs):
+    timeout = 300
+    cs = CloudStack(endpoint=API_MONITORS, key=APIKEY_MONITORS, secret=SECRET_MONITORS, timeout=timeout)
+    querypage = 1
+    querypagesize = 500
+    values = getattr(cs, method)(listall='true', pagesize=querypagesize, page=querypage, **kwargs).get(key_name, [])
+
+    if len(values) == querypagesize:
+        all_values = []
+        query_tmp = values
+        while len(query_tmp):
+            all_values.extend(query_tmp)
+            querypage = querypage + 1
+            query_tmp = getattr(cs, method)(listall='true', pagesize=querypagesize, page=querypage, **kwargs).get(key_name, [])
+        values = all_values
+
+    return values
+
+
 def get_stats():
     stats = dict()
     hvmrunning = dict()
@@ -173,35 +104,10 @@ def get_stats():
     hvmstarting = dict()
 
     logger('verb', "get_stats calls API %s KEY %s SECRET %s" % (API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS))
-    cloudstack = Client(API_MONITORS, APIKEY_MONITORS, SECRET_MONITORS)
+
     try:
         logger('verb', "Performing listhosts API call")
-        query_tmp = None
-        querypage = 1
-        querypagesize = 500
-        hypervisors = cloudstack.listHosts({
-            'type': 'Routing',
-            'resourcestate': 'Enabled',
-            'page': str(querypage),
-            'pagesize': str(querypagesize),
-            'state': 'Up'
-        })
-        all_hypervisors = []
-        if len(hypervisors) == querypagesize:
-            query_tmp = hypervisors
-            while len(query_tmp) > 1:
-                all_hypervisors.extend(query_tmp)
-                querypage = querypage + 1
-                query_tmp = cloudstack.listHosts({
-                    'type': 'Routing',
-                    'resourcestate': 'Enabled',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize),
-                    'state': 'Up'
-                })
-        else:
-            all_hypervisors.extend(hypervisors)
-        hypervisors = all_hypervisors
+        hypervisors = cs_list('listHosts', 'host', type='Routing', resourcestate='Enabled', state='Up')
         logger('verb', "Completed listhosts API call")
 
     except Exception:
@@ -228,28 +134,7 @@ def get_stats():
     # collect number of active console sessions
     try:
         logger('verb', "Performing listSystemVms API call")
-        query_tmp = None
-        querypage = 1
-        querypagesize = 500
-        systemvms = cloudstack.listSystemVms({
-            'systemvmtype': 'consoleproxy',
-            'page': str(querypage),
-            'pagesize': str(querypagesize)
-        })
-        all_systemvms = []
-        if len(systemvms) == querypagesize:
-            query_tmp = systemvms
-            while len(query_tmp) > 1:
-                all_systemvms.extend(query_tmp)
-                querypage = querypage + 1
-                query_tmp = cloudstack.listSystemVms({
-                    'systemvmtype': 'consoleproxy',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize)
-                })
-        else:
-            all_systemvms.extend(systemvms)
-        systemvms = all_systemvms
+        systemvms = cs_list('listSystemVms', 'systemvm', systemvmtype='consoleproxy')
         logger('verb', "Completed listSystemVms API call")
 
     except Exception:
@@ -263,28 +148,7 @@ def get_stats():
     # collect number of zones, available public ips and VMs
     try:
         logger('verb', "Performing listZones API call")
-        query_tmp = None
-        querypage = 1
-        querypagesize = 500
-        zones = cloudstack.listZones({
-            'showcapacities': 'true',
-            'page': str(querypage),
-            'pagesize': str(querypagesize)
-        })
-        all_zones = []
-        if len(zones) == querypagesize:
-            query_tmp = zones
-            while len(query_tmp) > 1:
-                all_zones.extend(query_tmp)
-                querypage = querypage + 1
-                query_tmp = cloudstack.listZones({
-                    'showcapacities': 'true',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize)
-                })
-        else:
-            all_zones.extend(zones)
-        zones = all_zones
+        zones = cs_list('listZones', 'zone', showcapacities='true')
         logger('verb', "Completed listZones API call")
 
     except Exception:
@@ -307,32 +171,8 @@ def get_stats():
         # collect number of virtual machines
         try:
             logger('verb', "Performing listVirtualMachines API call")
-            query_tmp = None
-            querypage = 1
-            querypagesize = 500
-            virtualmachines = cloudstack.listVirtualMachines({
-                'listall': 'true',
-                'details': 'all',
-                'page': str(querypage),
-                'pagesize': str(querypagesize)
-            })
-            all_virtualmachines = []
-            if len(virtualmachines) == querypagesize:
-                query_tmp = virtualmachines
-                while len(query_tmp) > 1:
-                    all_virtualmachines.extend(query_tmp)
-                    querypage = querypage + 1
-                    query_tmp = cloudstack.listVirtualMachines({
-                        'listall': 'true',
-                        'details': 'all',
-                        'page': str(querypage),
-                        'pagesize': str(querypagesize)
-                    })
-            else:
-                all_virtualmachines.extend(virtualmachines)
-            virtualmachines = all_virtualmachines
+            virtualmachines = cs_list('listVirtualMachines', 'virtualmachine', details='all')
             logger('verb', "Completed listVirtualMachines API call")
-
         except Exception:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVms" % API_MONITORS)
 
@@ -369,32 +209,8 @@ def get_stats():
         # collect number of root volumes
         try:
             logger('verb', "Performing listVolumes API call")
-            query_tmp = None
-            querypage = 1
-            querypagesize = 500
-            rootvolumes = cloudstack.listVolumes({
-                'listall': 'true',
-                'type': 'ROOT',
-                'page': str(querypage),
-                'pagesize': str(querypagesize)
-            })
-            all_rootvolumes = []
-            if len(rootvolumes) == querypagesize:
-                query_tmp = rootvolumes
-                while len(query_tmp) > 1:
-                    all_rootvolumes.extend(query_tmp)
-                    querypage = querypage + 1
-                    query_tmp = cloudstack.listVolumes({
-                        'listall': 'true',
-                        'type': 'ROOT',
-                        'page': str(querypage),
-                        'pagesize': str(querypagesize)
-                    })
-            else:
-                all_rootvolumes.extend(rootvolumes)
-            rootvolumes = all_rootvolumes
+            rootvolumes = cs_list('listVolumes', 'volume', type='ROOT')
             logger('verb', "Completed listVolumes API call")
-
         except Exception:
             logger('warn', "status err Unable to connect to CloudStack URL at %s for ListVolumes" % API_MONITORS)
 
@@ -481,31 +297,10 @@ def get_stats():
     # collect accounts
     try:
         logger('verb', "Performing listAccounts API call")
-        query_tmp = None
-        querypage = 1
-        querypagesize = 500
-        accounts = cloudstack.listAccounts({
-            'listall': 'true',
-            'page': str(querypage),
-            'pagesize': str(querypagesize)
-        })
-        all_accounts = []
-        if len(accounts) == querypagesize:
-            query_tmp = accounts
-            while len(query_tmp) > 1:
-                all_accounts.extend(query_tmp)
-                querypage = querypage + 1
-                query_tmp = cloudstack.listAccounts({
-                    'listall': 'true',
-                    'page': str(querypage),
-                    'pagesize': str(querypagesize)
-                })
-        else:
-            all_accounts.extend(accounts)
-        accounts = all_accounts
+        accounts = cs_list('listAccounts', 'account')
         logger('verb', "Completed listAccounts API call")
     except Exception:
-        print("status err Unable to connect to CloudStack URL at %s for ListAccounts")
+        logger('err', "status err Unable to connect to CloudStack URL at %s for ListAccounts")
 
     metricnameAccountsTotal = METRIC_DELIM.join(['accounts',  'accountscount'])
     metricnameAccountsTotalEnabled = METRIC_DELIM.join(['accounts',  'accountenabled'])
@@ -525,11 +320,11 @@ def get_stats():
 
     # collect capacity
     try:
-        capacity = cloudstack.listCapacity()
+        capacity = cs_list('listCapacity', 'capacity')
     except Exception:
-        print("status err Unable to connect to CloudStack URL at %s for ListCapacity")
+        logger('err', "status err Unable to connect to CloudStack URL at %s for ListCapacity")
 
-    for c in capacity['capacity']:
+    for c in capacity:
         if c['type'] == 0:
             metricnameCapaZoneMemoryTotal = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapamemorytotal'])
             metricnameCapaZoneMemoryUsed = METRIC_DELIM.join(['zonecapacity', c['zonename'].lower(),  'zonecapamemoryused'])
