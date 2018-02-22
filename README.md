@@ -65,4 +65,4 @@ Example
 Credits
 -------
 
-In production use at [exoscale](https://www.exoscale.ch) and licensed under the MIT License.
+In production use at [exoscale](https://www.exoscale.com) and licensed under the MIT License.
